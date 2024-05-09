@@ -1,0 +1,72 @@
+{
+    // IntelliSense を使用して利用可能な属性を学べます。
+    // 既存の属性の説明をホバーして表示します。
+    // 詳細情報は次を確認してください: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Django",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/map_for_starbucks/manage.py",
+            "args": [
+                "runserver"
+            ],
+            "envFile": "${workspaceFolder}/.vscode/.env",
+            "django": true,
+            "justMyCode": true
+        },
+
+        {
+            "name": "Django makemigrations",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/map_for_starbucks/manage.py",
+            "args": [
+                "makemigrations"
+            ],
+            "envFile": "${workspaceFolder}/.vscode/.env",
+            "django": true,
+            "justMyCode": true
+        },
+
+        {
+            "name": "Django migrate",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/map_for_starbucks/manage.py",
+            "args": [
+                "migrate"
+            ],
+            "envFile": "${workspaceFolder}/.vscode/.env",
+            "django": true,
+            "justMyCode": true
+        },
+
+        {
+            "name": "Django createsuperuser",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/map_for_starbucks/manage.py",
+            "args": [
+                "createsuperuser"
+            ],
+            "envFile": "${workspaceFolder}/.vscode/.env",
+            "django": true,
+            "justMyCode": true
+        },
+        
+        {
+            "name": "Django database_updater",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/map_for_starbucks/manage.py",
+            "args": [
+                "database_updater"
+            ],
+            "envFile": "${workspaceFolder}/.vscode/.env",
+            "django": true,
+            "justMyCode": true
+        },
+    ]
+}

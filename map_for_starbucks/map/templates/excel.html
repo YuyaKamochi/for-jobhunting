@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+{% extends 'base.html' %}
+{% load static %}
+
+{% block head %}
+<link rel="stylesheet" href="https://jsuites.net/v4/jsuites.css" type="text/css">
+<link rel="stylesheet" href="https://bossanova.uk/jspreadsheet/v4/jexcel.css" type="text/css">
+<link rel="stylesheet" href="{% static 'css/excelstyle.css' %}">
+{% endblock %}
+
+{% block content %}
+<div>
+  <input type="text" id="search-input" placeholder="Search...">
+  <select id="search-column">
+    <option value="all">All</option>
+    <option value="Name">Name</option>
+    <option value="Address">Address</option>
+    <option value="yuya">yuya</option>
+    <option value="non">non</option>
+    <option value="Monday">Monday</option>
+    <option value="Tuesday">Tuesday</option>
+    <option value="Wednesday">Wednesday</option>
+    <option value="Thursday">Thursday</option>
+    <option value="Friday">Friday</option>
+    <option value="Saturday">Saturday</option>
+    <option value="Sunday">Sunday</option>
+    <option value="Holiday">Holiday</option>
+  </select>
+  <button onclick="searchTable()">Search</button>
+</div>
+<div id="mytable"></div>
+<script src="https://bossanova.uk/jspreadsheet/v4/jexcel.js"></script>
+<script src="https://jsuites.net/v4/jsuites.js"></script>
+
+<form id="update-form" action="{% url 'map:update_data' %}" method="post" style="display: none;">
+  {% csrf_token %}
+  <input type="hidden" id="update-row" name="row" value="">
+  <input type="hidden" id="update-column" name="column" value="">
+  <input type="hidden" id="update-value" name="value" value="">
+  <input type="hidden" id="update-id" name="id" value="">
+</form>
+
+<script>
+  var shops = [
+    {% for shop in ShopList %}
+        {"Name": "{{ shop.name }}","yuya": {{ shop.yuya|lower }}, "non": {{ shop.non|lower }}, "Address": "{{ shop.address }}",
+         "Monday": "{{ shop.monday }}","Tuesday": "{{ shop.tuesday }}", 
+         "Wednesday": "{{ shop.wednesday }}", "Thursday": "{{ shop.thursday }}",
+         "Friday": "{{ shop.friday }}", "Saturday": "{{ shop.saturday }}", "Sunday": "{{ shop.sunday }}",
+         "Holiday": "{{ shop.holiday }}", "ID": "{{ shop.id }}", "add_day": "{{ shop.add_day }}", 
+         "yuya_last_visit": "{{shop.yuya_last_visit}}","yuya_frequency_of_visit": "{{ shop.yuya_frequency_of_visit }}",
+         "non_last_visit": "{{shop.non_last_visit}}","non_frequency_of_visit": "{{ shop.non_frequency_of_visit }}"},
+    {% endfor %}
+  ];
+
+  // IDの順番で行をソート
+  shops.sort(function(a, b) {
+    return a.ID - b.ID;
+  });
+
+  function decodeTime(encodedTime) {
+    if (encodedTime == 'None') {
+      // shop.timeがnullの場合、デフォルトの営業時間を設定
+      return encodedTime;
+    }
+    return encodedTime.replace(/&#x27;/g, "").replace("(", "").replace(")", "").split(", ");
+  }
+
+  let dayOptions = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday', 'Holiday'];
+
+  for (let i = 0; i < shops.length; i++) {
+    for (let j = 0; j < dayOptions.length; j++){
+      shops[i][dayOptions[j]] = decodeTime(shops[i][dayOptions[j]]);
+    }
+  }
+
+  // 日付フォーマットを変換する関数
+  function formatDate(dateString) {
+      const parts = dateString.split('-');
+      let year = parseInt(parts[0], 10);
+      year = ('0000'+year).slice(-4);
+      let month = parseInt(parts[1], 10);
+      month = ('00'+month).slice(-2);
+      let day = parseInt(parts[2], 10);
+      day = ('00'+day).slice(-2);
+      const formatDate = year+'/'+month+'/'+day
+      return formatDate;
+  }
+  
+  // "add_day" 列の値を日付に変換
+  for (let i = 0; i < shops.length; i++) {
+      const addDay = shops[i]['add_day'];
+      shops[i]['add_day'] = formatDate(addDay);
+
+      const yuya_frequency_of_visit = shops[i]['yuya_frequency_of_visit'];
+      if (yuya_frequency_of_visit == 'None') {
+        shops[i]['yuya_frequency_of_visit'] = 0;
+      }
+
+      const non_frequency_of_visit = shops[i]['non_frequency_of_visit'];
+      if (non_frequency_of_visit == 'None') {
+        shops[i]['non_frequency_of_visit'] = 0;
+      }
+  }
+
+  const headers = [
+    { type: 'text', title: 'Name', width: 200 },
+    { type: 'dropdown', title: 'yuya', width: 100, source: ['true', 'false'] },
+    { type: 'dropdown', title: 'non', width: 100, source: ['true', 'false'] },
+    { type: 'text', title: 'Address', width: 300 },
+    { type: 'text', title: 'Monday', width: 100 },
+    { type: 'text', title: 'Tuesday', width: 100 },
+    { type: 'text', title: 'Wednesday', width: 100 },
+    { type: 'text', title: 'Thursday', width: 100 },
+    { type: 'text', title: 'Friday', width: 100 },
+    { type: 'text', title: 'Saturday', width: 100 },
+    { type: 'text', title: 'Sunday', width: 100 },
+    { type: 'text', title: 'Holiday', width: 100 },
+    { type: 'text', title: 'ID', width:50},
+    { type: 'text', title: 'add_day', width: 100 },
+    { type: 'text', title: 'yuya_last_visit', width: 100 },
+    { type: 'text', title: 'yuya_frequency_of_visit', width: 50},
+    { type: 'text', title: 'non_last_visit', width: 100 },
+    { type: 'text', title: 'non_frequency_of_visit', width: 50},
+  ];
+
+  const myTable = jspreadsheet(document.getElementById('mytable'), {
+    data: shops,
+    columns: headers,
+    onchange: updateDataToDatabase,
+  });
+
+  function updateDataToDatabase(el, cell, x, y, value, oldValue) {
+    console.log('セルの内容が変更されました');
+    console.log(headers[x].title, y, value); // 変更されたデータの情報をログに出力
+
+    // フォームにセルの内容を設定
+    const updateRowInput = document.getElementById('update-row');
+    const updateColumnInput = document.getElementById('update-column');
+    const updateValueInput = document.getElementById('update-value');
+    const updateIdInput = document.getElementById('update-id');
+
+    updateRowInput.value = y;
+    updateColumnInput.value = headers[x].title;
+    updateValueInput.value = value;
+    updateIdInput.value = shops[y].ID;
+    
+    // 以下、ajaxリクエストを用いた非同期処理用
+    // Ajaxリクエストを作成
+    let xhr = new XMLHttpRequest();
+    xhr.open('POST', '{% url "map:update_data" %}', true);
+    xhr.setRequestHeader('X-CSRFToken', '{{ csrf_token }}'); // CSRFトークンを設定
+
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState === 4) {
+        if (xhr.status === 200) {
+          // リクエストが成功した場合の処理
+          console.log('データが更新されました。');
+        } else {
+          // リクエストが失敗した場合の処理
+          console.error('データの更新に失敗しました。');
+        }
+      }
+    };
+
+    // フォームデータを送信
+    let formData = new FormData();
+    formData.append('row', updateRowInput.value);
+    formData.append('column', updateColumnInput.value);
+    formData.append('value', updateValueInput.value);
+    formData.append('id', updateIdInput.value);
+
+    xhr.send(formData);
+
+  }
+
+  function searchTable() {
+    const searchValue = document.getElementById('search-input').value;
+    const searchColumn = document.getElementById('search-column').value;
+
+    // ドロップダウンで選択した列に対してのみ検索を行う
+    if (searchColumn === "all") {
+      myTable.search(searchValue, false);
+      console.log('all')
+    } else {
+      myTable.search(searchValue, false, false, columns=searchColumn);
+      console.log(searchColumn)
+    }
+  }
+  // 初期値をnameに設定
+  document.getElementById('search-column').value = "Name";
+</script>
+{% endblock %}

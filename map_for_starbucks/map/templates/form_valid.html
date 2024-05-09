@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+{% extends 'base.html' %}
+
+{% block head %}
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #f2f2f2;
+    }
+
+    h1 {
+        color: #333;
+        text-align: center;
+        margin-top: 50px;
+    }
+
+    .button-container {
+        text-align: center;
+        margin-top: 20px;
+    }
+
+    .button-container a {
+        display: inline-block;
+        margin-right: 10px;
+        padding: 10px 20px;
+        background-color: #007bff;
+        color: #fff;
+        text-decoration: none;
+        border-radius: 5px;
+    }
+
+    .button-container a:hover {
+        background-color: #0056b3;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+  <h1>{{user}}'s diff is compleated!</h1>
+  <a href="{% url 'map:import_list' %}">back</a>
+  <a href="{% url 'map:map' %}">map</a>
+  <div>
+    {{ diff_list }}
+  </div>
+  <div>
+    {{ notfind_list}}
+  </div>
+{% endblock %}

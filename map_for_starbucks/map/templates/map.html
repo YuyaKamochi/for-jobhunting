@@ -1,0 +1,234 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block head %}
+{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{% static 'css/mapstyle.css' %}">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css" />
+<div id="map"></div>
+
+<div id="fullscreen">Fullscreen</div>
+<div id="notification" style="display: none;"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.js"></script>
+
+<script>
+  var shops = [
+    {% for shop in ShopList %}
+      {% if shop.latitude %}
+        {"lat": "{{ shop.latitude }}", "lng": "{{ shop.longitude }}", "name": "{{ shop.name }}", "description": "{{ shop.address }}",
+         "yuya": {{ shop.yuya|lower }}, "non": {{ shop.non|lower }}, "ID": "{{ shop.id }}",
+         "monday": "{{ shop.monday }}", "tuesday": "{{ shop.tuesday }}", "wednesday": "{{ shop.wednesday }}",
+         "thursday": "{{ shop.thursday }}", "friday": "{{ shop.friday }}", "saturday": "{{ shop.saturday }}",
+         "sunday": "{{ shop.sunday }}", "holiday": "{{ shop.holiday }}", "drivethrough" : "{{ shop.drivethrough }}"},
+      {% endif %}
+    {% endfor %}
+  ];
+
+  var map = L.map('map', {
+    preferCanvas: true,
+  }).setView([35.681236, 139.767125], 15);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors',
+    maxZoom: 18,
+  }).addTo(map);
+
+  layer = L.featureGroup();
+  layer.addTo(map);
+
+  // チェックボックスを追加するレイヤーコントロールを作成
+  var overlayMaps = {
+    "Markers": layer
+  };
+
+  var checkbox = L.control({ position: 'topright' });
+  checkbox.onAdd = function (map) {
+    var div = L.DomUtil.create('div', 'leaflet-control-layers leaflet-control');
+    div.innerHTML =  `
+                      <label><input type="checkbox" id="yuya-checkbox" onclick="updateMarkers()" checked> hide Y</label>
+                      <label><input type="checkbox" id="non-checkbox" onclick="updateMarkers()" checked> hide N</label>
+                      `;
+    div.firstChild.onmousedown = div.firstChild.ondblclick = L.DomEvent.stopPropagation;
+    return div;
+  };
+  checkbox.addTo(map);
+
+  // 曜日と時間のドロップダウンリストを追加する
+  var timeDropdown = L.control({ position: 'topright' });
+  timeDropdown.onAdd = function (map) {
+    var div = L.DomUtil.create('div', 'leaflet-control-layers leaflet-control');
+    var dayOptions = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'holiday'];
+    var hourOptions = '';
+    var minuteOptions = '';
+
+    // 現在の時刻を取得
+    var now = new Date();
+    var day = now.getDay();
+    var currentHour = now.getHours();
+    var currentMinute = now.getMinutes();
+
+    // 現在時刻のminuteを15の倍数にする（切り捨て）
+    currentMinute = Math.floor(currentMinute / 15) * 15
+
+    for (var i = 0; i <= 23; i++) {
+      var hour = ('0' + i).slice(-2);
+      hourOptions += '<option value="' + hour + '"' + (i === currentHour ? ' selected' : '') + '>' + hour + '</option>';
+    }
+
+    for (var j = 0; j <= 59; j += 15) {
+      var minute = ('0' + j).slice(-2);
+      minuteOptions += '<option value="' + minute + '"' + (j === currentMinute ? ' selected' : '') + '>' + minute + '</option>';
+    }
+
+    var dayDropdown = '<select id="day-selector" onchange="updateMarkers()">';
+    for (var k = 0; k < dayOptions.length; k++) {
+      dayDropdown += '<option value="' + dayOptions[k] + '"' + (dayOptions[k] === dayOptions[day] ? 'selected' : '') + '>' + dayOptions[k] + '</option>';
+    }
+    dayDropdown += '</select>';
+
+    div.innerHTML = `
+                    ${dayDropdown}
+                    <select id="hour-selector" onchange="updateMarkers()">
+                      ${hourOptions}
+                    </select>
+                    <select id="minute-selector" onchange="updateMarkers()">
+                      ${minuteOptions}
+                    </select>
+                    `;
+    div.firstChild.onmousedown = div.firstChild.ondblclick = L.DomEvent.stopPropagation;
+    return div;
+  };
+  timeDropdown.addTo(map);
+
+  function decodeTime(encodedTime) {
+    if ((encodedTime == 'None') || (encodedTime == 'nan') || (Number.isNaN(encodedTime))) {
+      // shop.timeがnullの場合、デフォルトの営業時間を設定
+      return ["00:01", "00:02"];
+    }
+    return encodedTime.replace(/&#x27;/g, "").replace("(", "").replace(")", "").split(", ");
+  }
+
+  function updateMarkers() {
+    var yuyaCheckbox = document.getElementById('yuya-checkbox').checked;
+    var nonCheckbox = document.getElementById('non-checkbox').checked;
+    var selectedDay = document.getElementById('day-selector').value;
+    var selectedHour = document.getElementById('hour-selector').value;
+    var selectedMinute = document.getElementById('minute-selector').value;
+
+    layer.clearLayers();
+    for (let i = 0; i < shops.length; i++) {
+      var shopTime = decodeTime(shops[i][selectedDay]);
+      var startTime = shopTime[0].split(":");
+      var endTime = shopTime[1].split(":");
+      var openTime = new Date().setHours(startTime[0], startTime[1]);
+      var closeTime = new Date().setHours(endTime[0], endTime[1]);
+      var selectedTime = new Date().setHours(selectedHour, selectedMinute);
+
+      var isOpen = selectedTime >= openTime && selectedTime <= closeTime;
+
+      if ((yuyaCheckbox && shops[i].yuya === true) ||
+          (nonCheckbox && shops[i].non === true))
+      {
+        continue;
+      }
+
+      const marker = L.circleMarker([shops[i].lat, shops[i].lng], {
+        radius: 6,
+        color: isOpen ? 'red' : 'blue', // 営業時間中なら赤色、それ以外は灰色
+        fillColor: isOpen ? 'red' : 'blue',
+        fillOpacity: 0.7,
+      });
+
+      var popupShopTime = shopTime //popup表示用
+      if (popupShopTime[0] === "00:01") {
+        popupShopTime = "休業日"
+      } else {
+        popupShopTime = shopTime[0] + "~" + shopTime[1]
+      }
+      
+      // ポップアップ
+      marker.bindPopup("<b>" + shops[i].name + "</b><br>" + shops[i].description + "<br>" 
+                        + selectedDay + " " + popupShopTime + "<br>"
+                        + "drive-thru" + " " + shops[i].drivethrough + "<br>"
+                        + "yuya" + " " + shops[i].yuya + "<br>"
+                        + "non" + " " + shops[i].non
+                        + "<br><button onclick=\"shopVisitedUpdater("+ i +",'yuya','true')\">"+ 'yuya True' +"</button>"
+                        + "<button onclick=\"shopVisitedUpdater("+ i +",'yuya','false')\">"+ 'yuya False' +"</button>"
+                        + "<br><button onclick=\"shopVisitedUpdater("+ i +",'non','true')\">"+ 'non True' +"</button>"
+                        + "<button onclick=\"shopVisitedUpdater("+ i +",'non','false')\">"+ 'non False' +"</button>");
+      layer.addLayer(marker);
+    }
+  }
+
+  function shopVisitedUpdater(index, user_name,value) {
+    var message=user_name+''+value
+    showMessage(message);
+    console.log('セルの内容が変更されました');
+    console.log(user_name, index, value); // 変更されたデータの情報をログに出力
+    
+    // 以下、ajaxリクエストを用いた非同期処理用
+    // Ajaxリクエストを作成
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '{% url "map:update_data" %}', true);
+    xhr.setRequestHeader('X-CSRFToken', '{{ csrf_token }}'); // CSRFトークンを設定
+
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState === 4) {
+        if (xhr.status === 200) {
+          // リクエストが成功した場合の処理
+          console.log('データが更新されました。');
+          message=user_name+''+value+'更新されました'
+          showMessage(message);
+          shops[index][user_name] = value
+          console.log(shops[index][user_name]);
+          updateMarkers();
+        } else {
+          // リクエストが失敗した場合の処理
+          console.error('データの更新に失敗しました。');
+        }
+      }
+    };
+
+    // フォームデータを送信
+    var formData = new FormData();
+    formData.append('row', index);
+    formData.append('column', user_name);
+    formData.append('value', value);
+    formData.append('id', shops[index].ID);
+
+    xhr.send(formData);
+
+  }
+
+  document.getElementById('yuya-checkbox').checked = false;
+  document.getElementById('non-checkbox').checked = false;
+  updateMarkers(); // 最初の表示
+
+  document.getElementById('fullscreen').addEventListener('click', function () {
+    var element = document.getElementById('map');
+    if (element.requestFullscreen) {
+      element.requestFullscreen();
+    } else if (element.mozRequestFullScreen) {
+      element.mozRequestFullScreen();
+    } else if (element.webkitRequestFullscreen) {
+      element.webkitRequestFullscreen();
+    } else if (element.msRequestFullscreen) {
+      element.msRequestFullscreen();
+    }
+  });
+
+  function showMessage(message) {
+    var notification = document.getElementById('notification');
+    notification.innerText = message;
+    notification.style.display = 'block';
+
+    // 1秒後にメッセージを非表示にする
+    setTimeout(function() {
+      notification.style.display = 'none';
+    }, 1500); // 1000ミリ秒（＝1秒）後に非表示にする
+  }
+</script>
+{% endblock %}

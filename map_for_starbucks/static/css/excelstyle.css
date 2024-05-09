@@ -1,0 +1,8 @@
+/* タップ時のズームを無効にするスタイル */
+body {
+    touch-action: manipulation;
+  }
+
+.highlight {
+    background-color: yellow;
+  }
